@@ -22,13 +22,14 @@ init:          	## Initialize the project.
 install:        ## installs dependencies
 	@npm install
 
-build:          ## Bundle js with rollup.
+build: install  ## Bundle js with rollup.
 	@npm run build
 
 render:	build   ## Render the project.
 	@quarto render index.qmd
 
-images:         ## copy images to the docs folder
+.PHONY: images
+images: render        ## copy images to the docs folder
 	cp -r images $(IMG_DIR)
 
 test:		   ## run pytest

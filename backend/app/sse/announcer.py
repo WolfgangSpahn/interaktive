@@ -29,7 +29,7 @@ class MessageAnnouncer:
     """ Uses python's queue.Queue to implement the pubsub pattern of Server-Sent Events (SSE).
     """
     def __init__(self):
-        logger.info("SSE -- init MessageAnnouncer while starting ping thread.")
+        logger.debug("SSE -- init MessageAnnouncer while starting ping thread.")
         # self.listeners = []
         # use multiple locks to avoid
         # deadlocks when removing listeners
@@ -39,18 +39,18 @@ class MessageAnnouncer:
 
     def listen(self):
         """Returns a queue.Queue that blocks until a new item is added to the SSE stream."""
-        logger.info("SSE -- MessageAnnouncer.listen")
+        logger.debug("SSE -- MessageAnnouncer.listen")
         q = queue.Queue(maxsize=5)
 
         self.listener_locks[q] = threading.Lock()
         # Send an initial message to finalize the connection
         q.put_nowait(format_sse(data="SSE has successfully connected.", event="START"))
-        logger.info("SSE -- finally setup SSE connection")
+        logger.debug("SSE -- finally setup SSE connection")
         return q
 
     def announce(self, msg):
         """Announces a new item to the SSE stream."""
-        logger.info("SSE -- MessageAnnouncer announce")
+        logger.debug("SSE -- MessageAnnouncer announce")
         to_remove = []
 
         # Collect entries that need to be deleted
@@ -67,18 +67,18 @@ class MessageAnnouncer:
         # Remove the full queues after the iteration
         for q in to_remove:
             del self.listener_locks[q]
-            logger.info("Removed full queue from listener locks")
+            logger.debug("Removed full queue from listener locks")
 
     def broadcast(self, message):
         """Sends a message to all connected clients."""
-        logger.info("SSE -- Broadcasting message")
+        logger.debug("SSE -- Broadcasting message")
         to_remove = []
         for q, lock in self.listener_locks.items():
             with lock:  # Acquire lock for specific queue
                 try:
                     q.put_nowait(format_sse(data=message))
                 except queue.Full:
-                    logger.info("Queue full, marking listener for removal")
+                    logger.debug("Queue full, marking listener for removal")
                     to_remove.append(q)
                 except Exception as e:
                     logger.error(f"Error sending message: {e}")
@@ -89,7 +89,7 @@ class MessageAnnouncer:
                 try:
                     del self.listener_locks[q]
                 except ValueError:
-                    logger.info("SSE -- Could not remove listener: Queue was already removed")
+                    logger.debug("SSE -- Could not remove listener: Queue was already removed")
 
     def start_ping(self):
         logger.warning("SSE -- Starting ping thread, which sends a ping to all clients every 1 seconds.")
@@ -107,7 +107,7 @@ class MessageAnnouncer:
                     except Exception as e:
                         # Handle exceptions, e.g., full queue or disconnected client
                         logger.warning(f"SSE -- Error sending ping for {q}: {e}")
-                        logger.info("SSE -- Marking listener for removal")
+                        logger.debug("SSE -- Marking listener for removal")
                         to_remove.append(q)
             # Thread-safe removal of disconnected clients
             with threading.Lock():
@@ -115,5 +115,5 @@ class MessageAnnouncer:
                     try:
                         del self.listener_locks[q]
                     except ValueError:
-                        logger.info("SSE -- Could not remove listener: Queue was already removed")
+                        logger.debug("SSE -- Could not remove listener: Queue was already removed")
             time.sleep(1)

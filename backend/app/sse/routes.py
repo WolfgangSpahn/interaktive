@@ -1,21 +1,22 @@
-import flask
+from flask import Response
 import json
+
 from .manager import SSEManager
 from .announcer import format_sse
-
 
 import logging
 logger = logging.getLogger(__name__)
 
 subscribers = set()  # Store all subscribers to the SSE server
 
-def notify_subscribers0(data, event_type=None):
-    """Notify all subscribers with the new data, optionally specifying an event type."""
-    message = {'data': data}
-    if event_type:
-        message['event'] = event_type
-    for sub in subscribers:
-        sub.put(json.dumps(message))
+# def notify_subscribers0(data, event_type=None):
+#     """Notify all subscribers with the new data, optionally specifying an event type."""
+#     message = {'data': data}
+#     if event_type:
+#         message['event'] = event_type
+#     for sub in subscribers:
+#         sub.put(json.dumps(message))
+
 def notify_subscribers(sse_manager, data, event_type=None):
     # connect to the remote SSE server
     sse_manager.connect() #type: ignore
@@ -54,9 +55,8 @@ def stream(sse_manager):
                 yield f"error: message\n{msg}\n\n"
     except Exception as e:
         logger.error(f"Error during SSE communication: {e}")
-        return flask.Response("Error", status=500)
-
-
+        return Response("Error", status=500)
+    
 def parse_sse_msg(msg):
     try:
         lines = msg.strip('\n').split('\n') 
@@ -66,12 +66,20 @@ def parse_sse_msg(msg):
     except (IndexError, ValueError) as e:
         logger.error(f"Invalid SSE message: {e}")
         return None
-
-def setup_sse_listen(app):
-    sse_manager = SSEManager(address=("127.0.0.1", 2437), authkey=b'sse')
+    
+def setup_sse_listen(app, sse_port):
+    sse_manager = SSEManager(address=("127.0.0.1", sse_port), authkey=b'sse')
     logger.info(f"remote sse manager found, it is serving at: {sse_manager.address}")
     # Save this so we can use it later in the extension
     if not hasattr(app, "extensions"):  # pragma: no cover
         app.extensions = {}
-    app.extensions["sse-manager"] = sse_manager    
+    app.extensions["sse-manager"] = sse_manager 
     return sse_manager
+
+def create_route(app, sse_manager):
+    # test with
+    # curl -X GET http://localhost:5050/events
+    @app.route('/events')
+    def events():
+        """SSE endpoint for both pings and name changes."""
+        return Response(stream(sse_manager), mimetype='text/event-stream')
